@@ -1,40 +1,68 @@
-import altair as alt
-import numpy as np
-import pandas as pd
 import streamlit as st
+import sqlite3
 
-"""
-# Welcome to Streamlit!
+from pathlib import Path
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+from lib.db.inventory import Inventory
+from lib.db.products import Products
+from lib.db.warehouses import Warehouses
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+# TODO:
+#   - user authentication
+#     https://blog.streamlit.io/streamlit-authenticator-part-1-adding-an-authentication-component-to-your-app/
+#   - add internal libs to python path
+#   - limit choices in column to only available products
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+st.set_page_config(
+    page_title="GMM-Roquetes inventory tracker",
+    page_icon=":shopping_bags:",
+)
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
 
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
+def connect_db():
+    DB_NAME = "gmm_inventory_tracker"
+    DB_FILENAME = Path(__file__).parent / f"{DB_NAME}.db"
 
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
+    db_already_exists = DB_FILENAME.exists()
+    # Better to use connection for easier swap between engines
+    # conn = st.connection(DB_NAME, type="sql")
+    conn = sqlite3.connect(DB_FILENAME)
+    db_was_just_created = not db_already_exists
+    return conn, db_was_just_created
 
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+
+'''
+# :shopping_bags: GMM-Roquetes inventory tracker
+
+**Welcome to intentory tracker!**
+
+This page reads and writes directly from/to our inventory database.
+'''
+
+st.info('''
+    Use the table below to add, remove, and edit items.
+    And don't forget to commit your changes when you're done.
+    ''')
+
+conn, db_was_just_created = connect_db()
+
+products = Products(conn, db_was_just_created)
+warehouses = Warehouses(conn, db_was_just_created)
+inventory = Inventory(products, warehouses, conn, db_was_just_created)
+
+
+st.header("Inventory")
+inventory.data_editor()
+
+st.header("Products")
+products.data_editor()
+
+st.header("Warehouses")
+warehouses.data_editor()
+
+
+# st.session_state.products_table  # TODO: Delete. For debug purposes.
+
+
+
+# st.metric("My metric", 42, 2)
